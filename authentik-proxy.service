@@ -1,0 +1,12 @@
+[Unit]
+Description=Authentik Proxy Server
+After=network.target
+
+[Service]
+User=authentik
+Group=authentik
+EnvironmentFile=/etc/conf.d/authentik-proxy
+ExecStart=/usr/bin/authentik-proxy
+
+[Install]
+WantedBy=multi-user.target

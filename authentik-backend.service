@@ -1,0 +1,14 @@
+[Unit]
+Description=Authentik Server
+After=network.target
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=authentik
+Group=authentik
+WorkingDir=/var/lib/authentik
+ExecStart=/usr/bin/authentik-backend
+
+[Install]
+WantedBy=multi-user.target

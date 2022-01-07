@@ -1,0 +1,5 @@
+#!/bin/bash
+cd /var/lib/authentik
+poetry shell
+make migrate
+make run

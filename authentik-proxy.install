@@ -1,0 +1,65 @@
+_start_if_enabled() {
+    if systemctl -q is-enabled authentik-proxy.service ;then
+        echo "  Starting authentik-proxy service"
+        systemctl start authentik-proxy.service
+    fi
+}
+
+_stop_if_active() {
+    if systemctl -q is-active authentik-proxy.service ;then
+        echo "  Stoping authentik proxy service"
+        systemctl stop authentik-proxy.service
+    fi
+}
+
+_disable_if_enabled() {
+    if systemctl -q is-enabled authentik-proxy.service 2>/dev/null ;then
+        echo "  Disabling authentik proxy service"
+        systemctl disable authentik-proxy.service
+    fi
+}
+
+_authentik_home=/var/lib/authentik
+
+pre_install() {
+    if getent passwd authentik >/dev/null; then
+        local _OldHome="$( getent passwd authentik | cut -d: -f6 )"
+        if [[ ${_OldHome} != "${_authentik_home}" ]]; then
+            echo "  Setting authentik home directory to ${_authentik_home}"
+            echo "  You must migrate from ${_OldHome}" to ${_authentik_home}
+            echo "  before starting or re-enabling service"
+            usermod -c 'Authentik service user' -g authentik -d ${_authentik_home} -L -s /bin/bash authentik
+            _disable_if_enabled
+        fi
+    fi
+}
+
+post_install(){
+    systemctl daemon-reload
+    echo "This proxy can be configured interactively by running configure-authentik-proxy or setting the appropriate variables in /etc/conf.d/authentik-proxy";
+}
+pre_upgrade() {
+    _stop_if_active
+    pre_install
+}
+
+post_upgrade() {
+    systemctl daemon-reload
+    _start_if_enabled
+}
+
+pre_remove() {
+    _stop_if_active
+    _disable_if_enabled
+}
+
+post_remove() {
+    if getent passwd authentik >/dev/null; then
+        userdel authentik
+    fi
+    if getent group authentik >/dev/null; then
+        groupdel authentik
+    fi
+    systemctl daemon-reload
+    echo "  You may need to manually remove an old Authentik home: ${_authentik_home}"
+}

@@ -1,0 +1,74 @@
+_start_if_enabled() {
+    if systemctl -q is-enabled authentik-frontend.service ;then
+        echo "  Starting authentik-frontend service"
+        systemctl start authentik-frontend.service
+    fi
+}
+
+_stop_if_active() {
+    if systemctl -q is-active authentik-frontend.service ;then
+        echo "  Stoping authentik frontend service"
+        systemctl stop authentik-frontend.service
+    fi
+}
+
+_disable_if_enabled() {
+    if systemctl -q is-enabled authentik-frontend.service 2>/dev/null ;then
+        echo "  Disabling authentik frontend service"
+        systemctl disable authentik-frontend.service
+    fi
+}
+
+_authentik_home=/var/lib/authentik
+
+pre_install() {
+    if getent passwd authentik >/dev/null; then
+        local _OldHome="$( getent passwd authentik | cut -d: -f6 )"
+        if [[ ${_OldHome} != "${_authentik_home}" ]]; then
+            echo "  Setting authentik home directory to ${_authentik_home}"
+            echo "  You must migrate from ${_OldHome}" to ${_authentik_home}
+            echo "  before starting or re-enabling service"
+            usermod -c 'Authentik service user' -g authentik -d ${_authentik_home} -L -s /bin/bash authentik
+            _disable_if_enabled
+            cat <<EOF > /var/lib/authentik/local.env.yml
+            debug: true
+            postgresql:
+              user: postgres
+
+              log_level: debug
+              secret_key: $(pwgen 40 1)
+EOF
+        fi
+    fi
+}
+
+post_install(){
+    chown -R authentik:authentik /etc/webapps/authentik
+    systemctl daemon-reload
+    echo "The frontend can be configured by editing /etc/webapps/authentik/config.yml"
+}
+pre_upgrade() {
+    _stop_if_active
+    pre_install
+}
+
+post_upgrade() {
+    systemctl daemon-reload
+    _start_if_enabled
+}
+
+pre_remove() {
+    _stop_if_active
+    _disable_if_enabled
+}
+
+post_remove() {
+    if getent passwd authentik >/dev/null; then
+        userdel authentik
+    fi
+    if getent group authentik >/dev/null; then
+        groupdel authentik
+    fi
+    systemctl daemon-reload
+    echo "  You may need to manually remove an old Authentik home: ${_authentik_home}"
+}
